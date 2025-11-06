@@ -1,0 +1,93 @@
+// === Arduino Motor + Ultrasonic Control ===
+#define TRIG_LEFT 4
+#define ECHO_LEFT 5
+#define TRIG_MID 2
+#define ECHO_MID 3
+#define TRIG_RIGHT 6
+#define ECHO_RIGHT 7
+
+#define IN1 8
+#define IN2 9
+#define IN3 10
+#define IN4 11
+
+long getDistance(int trig, int echo) {
+  digitalWrite(trig, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trig, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trig, LOW);
+  long duration = pulseIn(echo, HIGH, 25000);
+  return duration * 0.034 / 2;
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(TRIG_LEFT, OUTPUT);
+  pinMode(ECHO_LEFT, INPUT);
+  pinMode(TRIG_MID, OUTPUT);
+  pinMode(ECHO_MID, INPUT);
+  pinMode(TRIG_RIGHT, OUTPUT);
+  pinMode(ECHO_RIGHT, INPUT);
+
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+}
+
+void moveForward() {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+void moveLeft() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+void moveRight() {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+}
+
+void stopMove() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+}
+
+void loop() {
+  // อ่านค่าจาก ultrasonic
+  long leftDist = getDistance(TRIG_LEFT, ECHO_LEFT);
+  long midDist = getDistance(TRIG_MID, ECHO_MID);
+  long rightDist = getDistance(TRIG_RIGHT, ECHO_RIGHT);
+
+  // ส่งค่ากลับไปให้ Raspberry Pi
+  Serial.print("ULTRA,");
+  Serial.print(leftDist);
+  Serial.print(",");
+  Serial.print(midDist);
+  Serial.print(",");
+  Serial.println(rightDist);
+
+  // ตรวจสอบคำสั่งจาก Pi
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    if (cmd == "FORWARD") moveForward();
+    else if (cmd == "LEFT") moveLeft();
+    else if (cmd == "RIGHT") moveRight();
+    else if (cmd == "STOP") stopMove();
+  }
+
+  delay(100);
+}
