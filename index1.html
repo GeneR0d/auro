@@ -1,0 +1,76 @@
+# === Raspberry Pi Main Controller ===
+import serial
+import cv2
+import pyttsx3
+import time
+
+# เปิดพอร์ต Serial ต่อกับ Arduino
+arduino = serial.Serial('/dev/ttyACM0', 115200, timeout=1)
+
+# ระบบเสียง
+engine = pyttsx3.init()
+engine.setProperty('rate', 160)
+
+# โหลดโมเดลตรวจจับคนล้ม (ใช้โมเดลเช่น Teachable Machine หรือ YOLO)
+fall_cascade = cv2.CascadeClassifier('fall_detection.xml')  # สมมุติว่าเรามีโมเดลนี้
+
+camera = cv2.VideoCapture(0)
+
+def speak(text):
+    engine.say(text)
+    engine.runAndWait()
+
+def move(cmd):
+    arduino.write((cmd + '\n').encode())
+
+def read_ultrasonic():
+    if arduino.in_waiting > 0:
+        line = arduino.readline().decode().strip()
+        if line.startswith("ULTRA"):
+            try:
+                _, left, mid, right = line.split(',')
+                return int(left), int(mid), int(right)
+            except:
+                return None
+    return None
+
+while True:
+    ret, frame = camera.read()
+    if not ret:
+        continue
+
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    falls = fall_cascade.detectMultiScale(gray, 1.1, 4)
+
+    for (x, y, w, h) in falls:
+        cv2.rectangle(frame, (x, y), (x+w, y+h), (0,0,255), 2)
+        speak("พบคนล้ม! กำลังเข้าช่วยเหลือ")
+        
+        # เคลื่อนที่ไปหาคนล้ม
+        move("FORWARD")
+
+        while True:
+            data = read_ultrasonic()
+            if data:
+                left, mid, right = data
+                # หยุดถ้ามีสิ่งกีดขวาง
+                if mid < 20:
+                    move("STOP")
+                    speak("ถึงตัวแล้วครับ")
+                    break
+                elif left < 15:
+                    move("RIGHT")
+                elif right < 15:
+                    move("LEFT")
+                else:
+                    move("FORWARD")
+            time.sleep(0.1)
+        break
+
+    cv2.imshow('Fall Detection Robot', frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+camera.release()
+cv2.destroyAllWindows()
+arduino.close()
